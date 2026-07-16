@@ -1,0 +1,53 @@
+const mongoose=require('mongoose');
+const orderSchema=new mongoose.Schema({
+    customer:{
+        type:mongoose.Schema.Types.ObjectId,
+        ref:'User',
+        required:true
+    },
+    driver:{
+        type:mongoose.Schema.Types.ObjectId,
+        ref:'User',
+        default:null
+    },
+    pickupLocation:{
+        type:{
+            type:String,
+            enum:['Point'],
+            default:'Point'
+        },
+        coordinates:{
+            type:[Number],
+            required:true
+        }
+    },
+    dropLocation:{
+        type:{
+            type:String,
+            enum:['Point'],
+            default:'Point'
+        },
+        coordinates:{
+            type:[Number],
+            required:true
+        }
+    },
+    status:{
+        type:String,
+        enum:['requested','accepted','picked_up','in_transit','completed','cancelled'],
+        default:'requested'
+    },
+    rating:{
+        type:Number,
+        min:1,
+        max:5,
+        default:null
+    },
+    review:{
+        type:String,
+        default:null
+    }
+},{timestamps:true});
+const Order=mongoose.model('Order',orderSchema);
+
+module.exports=Order;

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socket.io Test</title>
+</head>
+<body>
+    <h1>Socket.io Real Time Test</h1>
+    
+    <button onclick="simulateDriver()">Simulate Driver Location Update</button>
+    <button onclick="joinRide()">Join Ride Room</button>
+    
+    <h2>Events received:</h2>
+    <div id="events"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // Connect to our server
+        const socket = io();
+
+        // When connected
+        socket.on('connect', () => {
+            addEvent('Connected to server! ID: ' + socket.id);
+        });
+
+        // Listen for driver location updates
+        socket.on('driver:locationUpdated', (data) => {
+            addEvent('Driver location updated: ' + JSON.stringify(data));
+        });
+
+        // Listen for ride status updates
+        socket.on('ride:statusUpdated', (data) => {
+            addEvent('Ride status updated: ' + JSON.stringify(data));
+        });
+
+        socket.on('order:statusUpdated', (data) => {
+            addEvent('Order status updated: ' + data.status);
+        });
+
+        // Simulate driver sending location
+        function simulateDriver() {
+            socket.emit('driver:updateLocation', {
+                orderId: '6a525e94b9dc87cb4378c0aa',
+                driverId: 'driver123',
+                longitude: 88.3639,
+                latitude: 22.5726
+            });
+            addEvent('Sent driver location update!');
+        }
+
+        // Join a ride room
+        function joinRide() {
+            socket.emit('ride:join', '6a525e94b9dc87cb4378c0aa');
+            addEvent('Joined ride room: 6a525e94b9dc87cb4378c0aa');
+        }
+
+        function addEvent(message) {
+            const div = document.getElementById('events');
+            div.innerHTML += '<p>' + message + '</p>';
+        }
+    </script>
+</body>
+</html>
