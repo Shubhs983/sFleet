@@ -35,7 +35,7 @@ app.use('/api/driver', driverRoutes);
 app.use('/api/order', orderRoutes);
 
 app.get('/', (req, res) => {
-    res.json({ message: "Delivery Tracker API is running!" });
+    res.redirect('/login.html');
 });
 
 app.get('/test', (req, res) => {
