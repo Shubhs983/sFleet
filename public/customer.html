@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SFleet — Customer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+    :root {
+        --bg: #1B1224;
+        --card: #251830;
+        --card-border: #3D2A4A;
+        --text: #F5EDF7;
+        --text-dim: #A992B8;
+        --beacon: #F0B15C;
+        --lilac: #B89AD6;
+        --input-bg: #1F1428;
+        --error: #F27C8D;
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0; min-height: 100vh; background: var(--bg);
+        font-family: 'Inter', sans-serif; color: var(--text); padding: 24px;
+    }
+    .topbar {
+        display: flex; align-items: center; justify-content: space-between;
+        max-width: 480px; margin: 0 auto 24px;
+    }
+    .topbar .brand { font-family: 'Fraunces', serif; font-weight: 600; font-size: 20px; }
+    .topbar .brand span { color: var(--beacon); font-style: italic; }
+    .topbar button {
+        background: none; border: 1px solid var(--card-border); color: var(--text-dim);
+        padding: 6px 12px; border-radius: 7px; font-size: 12px; cursor: pointer;
+    }
+    .container { max-width: 480px; margin: 0 auto; }
+    .card {
+        background: var(--card); border: 1px solid var(--card-border); border-radius: 14px;
+        padding: 18px; margin-bottom: 16px;
+    }
+    .card h3 { margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+    .driver-row {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 10px 0; border-bottom: 1px solid var(--card-border); font-size: 14px;
+    }
+    .driver-row:last-child { border-bottom: none; }
+    .btn {
+        width: 100%; padding: 12px; background: var(--beacon); border: none; border-radius: 9px;
+        color: #2A1A05; font-weight: 600; font-size: 14px; cursor: pointer; margin-top: 8px;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .status-badge {
+        display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 12px;
+        background: rgba(184,154,214,0.15); color: var(--lilac); font-weight: 500;
+    }
+    #locationLog { font-size: 13px; color: var(--text-dim); }
+    .empty { color: var(--text-dim); font-size: 13px; text-align: center; padding: 12px 0; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+    <span class="brand">S<span>Fleet</span></span>
+    <button onclick="logout()">Log out</button>
+</div>
+
+<div class="container">
+    <div class="card">
+        <h3>Nearby drivers</h3>
+        <div id="driversList" class="empty">Finding drivers near you...</div>
+    </div>
+
+    <div class="card">
+        <h3>Request a ride</h3>
+        <button class="btn" id="requestBtn" onclick="createOrder()">Request ride to test drop point</button>
+    </div>
+
+    <div class="card">
+        <h3>Live tracking</h3>
+        <p>Status: <span class="status-badge" id="orderStatus">No active order</span></p>
+        <div id="locationLog"></div>
+    </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/login.html';
+
+    const socket = io();
+    let myLocation = null;
+    let currentOrderId = null;
+
+    function logout() {
+        localStorage.clear();
+        window.location.href = '/login.html';
+    }
+    // Get the browser's current location
+function getMyLocation() {
+    return new Promise((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                resolve({
+                    longitude: position.coords.longitude,
+                    latitude: position.coords.latitude
+                });
+            },
+            () => {
+                // If location access denied, fall back to Kolkata coordinates for testing
+                resolve({ longitude: 88.3639, latitude: 22.5726 });
+            }
+        );
+    });
+}
+
+// Fetch nearby drivers and display them
+async function loadNearbyDrivers() {
+    myLocation = await getMyLocation();
+
+    const res = await fetch(`/api/driver/nearby?longitude=${myLocation.longitude}&latitude=${myLocation.latitude}`, {
+        headers: { 'authorization': token }
+    });
+    const data = await res.json();
+
+    const listEl = document.getElementById('driversList');
+
+    if (data.success && data.data.length > 0) {
+        listEl.innerHTML = '';
+        data.data.forEach((driver) => {
+            const row = document.createElement('div');
+            row.className = 'driver-row';
+            row.innerHTML = `<span>${driver.user.name}</span><span class="status-badge">Available</span>`;
+            listEl.appendChild(row);
+        });
+    } else {
+        listEl.innerHTML = '<div class="empty">No drivers nearby right now.</div>';
+    }
+}
+
+// Run this as soon as the page loads
+loadNearbyDrivers();
+// Create a new order when "Request ride" is clicked
+async function createOrder() {
+    const requestBtn = document.getElementById('requestBtn');
+    requestBtn.disabled = true;
+    requestBtn.textContent = 'Requesting...';
+
+    // Fixed test drop point (~5km from most starting locations)
+    const dropLongitude = 88.40;
+    const dropLatitude = 22.60;
+
+    const res = await fetch('/api/order/create', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'authorization': token
+        },
+        body: JSON.stringify({
+            pickupLongitude: myLocation.longitude,
+            pickupLatitude: myLocation.latitude,
+            dropLongitude,
+            dropLatitude
+        })
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+        currentOrderId = data.data._id;
+        document.getElementById('orderStatus').textContent = data.data.status;
+
+        // Join this order's real-time room (from Day 9/11!)
+        socket.emit('ride:join', currentOrderId);
+
+        requestBtn.textContent = 'Ride requested!';
+    } else {
+        requestBtn.textContent = 'Request ride to test drop point';
+        requestBtn.disabled = false;
+        alert(data.message);
+    }
+}
+// Listen for real-time order status updates
+socket.on('order:statusUpdated', (data) => {
+    if (data._id === currentOrderId) {
+        document.getElementById('orderStatus').textContent = data.status;
+    }
+});
+
+// Listen for real-time driver location updates
+socket.on('driver:locationUpdated', (data) => {
+    if (data.orderId === currentOrderId) {
+        const log = document.getElementById('locationLog');
+        log.textContent = `Driver location: ${data.latitude}, ${data.longitude}`;
+    }
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SFleet — Driver</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+    :root {
+        --bg: #1B1224; --card: #251830; --card-border: #3D2A4A;
+        --text: #F5EDF7; --text-dim: #A992B8; --beacon: #F0B15C;
+        --lilac: #B89AD6; --input-bg: #1F1428;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: var(--bg); font-family: 'Inter', sans-serif; color: var(--text); padding: 24px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; max-width: 480px; margin: 0 auto 24px; }
+    .topbar .brand { font-family: 'Fraunces', serif; font-weight: 600; font-size: 20px; }
+    .topbar .brand span { color: var(--beacon); font-style: italic; }
+    .topbar button { background: none; border: 1px solid var(--card-border); color: var(--text-dim); padding: 6px 12px; border-radius: 7px; font-size: 12px; cursor: pointer; }
+    .container { max-width: 480px; margin: 0 auto; }
+    .card { background: var(--card); border: 1px solid var(--card-border); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+    .card h3 { margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+    .status-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 12px; background: rgba(184,154,214,0.15); color: var(--lilac); font-weight: 500; }
+    .btn { width: 100%; padding: 12px; background: var(--beacon); border: none; border-radius: 9px; color: #2A1A05; font-weight: 600; font-size: 14px; cursor: pointer; margin-top: 8px; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-outline { background: none; border: 1px solid var(--card-border); color: var(--text); }
+    .order-card { border: 1px solid var(--card-border); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+    .order-card p { margin: 4px 0; font-size: 13px; color: var(--text-dim); }
+    .empty { color: var(--text-dim); font-size: 13px; text-align: center; padding: 12px 0; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+    <span class="brand">S<span>Fleet</span></span>
+    <button onclick="logout()">Log out</button>
+</div>
+
+<div class="container">
+    <div class="card">
+        <h3>My status</h3>
+        <p>Availability: <span class="status-badge" id="availabilityBadge">Checking...</span></p>
+        <button class="btn" id="toggleAvailBtn" onclick="toggleAvailability()">Go available</button>
+    </div>
+
+    <div class="card">
+        <h3>My orders</h3>
+        <div id="ordersList" class="empty">Loading orders...</div>
+    </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/login.html';
+
+    const socket = io();
+    let myLocation = null;
+    let isAvailable = false;
+
+    function logout() {
+        localStorage.clear();
+        window.location.href = '/login.html';
+    }
+
+    function getMyLocation() {
+        return new Promise((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+                (position) => resolve({ longitude: position.coords.longitude, latitude: position.coords.latitude }),
+                () => resolve({ longitude: 88.3639, latitude: 22.5726 })
+            );
+        });
+    }
+
+    async function toggleAvailability() {
+        isAvailable = !isAvailable;
+        myLocation = await getMyLocation();
+
+        const res = await fetch('/api/driver/update-location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'authorization': token },
+            body: JSON.stringify({ longitude: myLocation.longitude, latitude: myLocation.latitude, isAvailable })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            document.getElementById('availabilityBadge').textContent = isAvailable ? 'Available' : 'Offline';
+            document.getElementById('toggleAvailBtn').textContent = isAvailable ? 'Go offline' : 'Go available';
+        }
+    }
+
+    async function loadMyOrders() {
+        const res = await fetch('/api/order/my-orders', { headers: { 'authorization': token } });
+        const data = await res.json();
+        const listEl = document.getElementById('ordersList');
+
+        if (data.success && data.data.length > 0) {
+            listEl.innerHTML = '';
+            data.data.forEach((order) => {
+                const div = document.createElement('div');
+                div.className = 'order-card';
+                div.innerHTML = `
+                    <p><strong style="color: var(--text)">Order #${order._id.slice(-6)}</strong></p>
+                    <p>Status: <span class="status-badge">${order.status}</span></p>
+                    ${getNextStatusButton(order)}
+                `;
+                listEl.appendChild(div);
+            });
+        } else {
+            listEl.innerHTML = '<div class="empty">No orders yet.</div>';
+        }
+    }
+
+    function getNextStatusButton(order) {
+        const flow = { requested: 'accepted', accepted: 'picked_up', picked_up: 'in_transit', in_transit: 'completed' };
+        const next = flow[order.status];
+        if (!next) return '';
+        return `<button class="btn btn-outline" onclick="updateStatus('${order._id}', '${next}')">Mark as ${next}</button>`;
+    }
+
+    async function updateStatus(orderId, status) {
+        const res = await fetch(`/api/order/${orderId}/status`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'authorization': token },
+            body: JSON.stringify({ status })
+        });
+        const data = await res.json();
+        if (data.success) {
+            socket.emit('ride:join', orderId);
+            loadMyOrders();
+        } else {
+            alert(data.message);
+        }
+    }
+
+    loadMyOrders();
+    document.getElementById('availabilityBadge').textContent = 'Offline';
+</script>
+
+</body>
+</html>

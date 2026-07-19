@@ -23,6 +23,7 @@ const io = new Server(server);
 
 // Global middleware
 app.use(express.json());
+app.use(express.static('public'));
 app.use((req, res, next) => {
     req.io = io;
     next();
