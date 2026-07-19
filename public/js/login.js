@@ -51,15 +51,19 @@ async function handleSubmit() {
             });
             const data = await res.json();
             if (data.success) {
-                localStorage.setItem('token', data.token);
-                localStorage.setItem('role', selectedRole);
-                messageEl.textContent = data.message;
-                messageEl.className = 'success';
+    const payload = JSON.parse(atob(data.token.split('.')[1]));
+    const actualRole = payload.role;
 
-                setTimeout(() => {
-                    window.location.href = selectedRole === 'driver' ? '/driver.html' : '/customer.html';
-                }, 800);
-            } else {
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('role', actualRole);
+    messageEl.textContent = data.message;
+    messageEl.className = 'success';
+
+    setTimeout(() => {
+        window.location.href = actualRole === 'driver' ? '/driver.html' : '/customer.html';
+    }, 800);
+}
+            else {
                 messageEl.textContent = data.message;
                 messageEl.className = 'error';
             }
