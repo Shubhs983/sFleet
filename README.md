@@ -1,6 +1,6 @@
 # SFleet — Real-Time Delivery & Ride Tracking Backend
 
-A backend system for a customer-driver ride/delivery application — similar in concept to Uber or Swiggy's driver-matching and tracking core. Customers and drivers can sign up, log in, and interact through a full ride lifecycle with live, real-time updates.
+A real-time ride and delivery tracking backend built around one priority: making every journey visible and accountable, for both rider and driver, from request to drop-off. Designed with a particular focus on safer travel for women — especially at night — SFleet lets customers track their ride live, and gives drivers a transparent, structured way to manage requests through a complete ride lifecycle.
 
 ## What It Does
 
